@@ -1,6 +1,6 @@
 <?php
 
-namespace Didphp\OceanEngineApi
+namespace didphp\OceanEngineApi
 
 class ServiceProvider extends \Illuminate\Support\ServiceProvider
 {
