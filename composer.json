@@ -14,5 +14,12 @@
         "psr-4": {
             "didphp\\ocean-engine-api\\": "./src/"
         }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "didphp\\OceanEngineApi\\ServiceProvider"
+            ]
+        }
     }
 }
