@@ -9,5 +9,10 @@
             "email": "2575056200@qq.com"
         }
     ],
-    "require": {}
+    "require": {},
+    "autoload": {
+        "psr-4": {
+            "didphp\\ocean-engine-api\\": "./src/"
+        }
+    },
 }
