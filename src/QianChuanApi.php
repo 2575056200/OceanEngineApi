@@ -1,12 +1,12 @@
 <?php
-namespace Didphp\OceanEngineApi;
+namespace didphp\OceanEngineApi;
 
 /**
  * Class QianChuanApi
  * 巨量引擎开放平台千川API
  * @package didphp\OceanEngineApi
  */
-class QianChuanApi {
+class LbbQianChuanApi {
 
     const DOMAIN = 'https://ad.oceanengine.com';
 
@@ -15,25 +15,60 @@ class QianChuanApi {
         'authorizeUrl' => 'https://qianchuan.jinritemai.com/openapi/qc/audit/oauth.html',
         //获取 access token
         'getAccessToken' => self::DOMAIN . '/open_api/oauth2/access_token/',
+        //刷新 access token
+        'refreshAccessToken' => self::DOMAIN . '/open_api/oauth2/refresh_token/',
+        //获取已授权账户
+        'getAdvertiser' => self::DOMAIN . '/open_api/oauth2/advertiser/get/?',
     ];
 
     private $_nowTime;
-
     public $config=[];
+    private $_configFile;
 
-//
-//    private $_timestamp;
-//    private $_v = 2;
-//    private $_accessToken;
-//    private $_refreshToken;
-//    private $_accessTokenFile;
-//    private $_cachePath;
-//    private $_apiLog;
-//    private $_config;
 
     public function __construct($config=[]) {
+        $this->_nowTime = time();
         $this->config['app_id'] = isset($config['app_id']) ? trim($config['app_id']) : '';
         $this->config['secret'] = isset($config['secret']) ? trim($config['secret']) : '';
+        $this->config['auth_code'] = isset($config['auth_code']) ? trim($config['auth_code']) : '';
+        $this->config['access_token'] = isset($config['access_token']) ? trim($config['access_token']) : '';
+        $this->config['refresh_token'] = isset($config['refresh_token']) ? trim($config['refresh_token']) : '';
+
+        if ($this->config['app_id'] == '') { return false; }
+
+        $basicPath = "qianchuan-api/{$this->config['app_id']}";
+        $this->_apiLog = "{$basicPath}/log/" . date('Y-m-d', $this->_nowTime) . "/request_" . date('H', $this->_nowTime) . ".log";
+
+        if ($this->config['auth_code'] == '') {
+            $fillConfig = false;
+            $this->_configFile = "{$basicPath}/config.json";
+            $configFileExist = Storage::disk('public')->exists($this->_configFile);
+            if ($configFileExist) {
+                $configString = Storage::disk('public')->get($this->_configFile);
+                if ($configString != '') {
+                    $configData = json_decode($configString, true);
+                    if ($configData && $configData['access_token']) {
+                        $fillConfig = true;
+                    }
+                    if ($fillConfig) {
+                        if ($this->config['secret'] == '') {
+                            $this->config['secret'] = $configData['secret'];
+                        }
+                        if ($configData['updated'] + $configData['expires_in'] < $this->_nowTime) {
+
+                        }
+
+
+                        if ($this->config['access_token'] == '') {
+                            $this->config['access_token'] = $configData['access_token'];
+                        }
+                        if ($this->config['refresh_token'] == '') {
+                            $this->config['refresh_token'] = $configData['refresh_token'];
+                        }
+                    }
+                }
+            }
+        }
         return $this;
     }
 
@@ -51,52 +86,74 @@ class QianChuanApi {
             'app_id' => $this->config['app_id'],
             'secret' => $this->config['secret'],
             'grant_type' => 'auth_code',
-            'auth_code' => uniqid('auth-code-'),
+            'auth_code' => $this->config['auth_code'],
         ];
-        $result = $this->sendRequest($url, $data);
-        var_dump($result);
-    }
-    
-
-
-    private function sendRequest($url, $paramData=[]) {
-//        if ($data && count($data) > 0) {
-//            ksort($data);
-//            $paramsJson = json_encode($data, JSON_UNESCAPED_UNICODE);
-//            $paramsJson = str_replace('&', '\u0026', $paramsJson);
-//            $paramsJson = str_replace('<', '\u003c', $paramsJson);
-//            $paramsJson = str_replace('>', '\u003e', $paramsJson);
-//            $paramsJson = str_replace("\/", '/', $paramsJson);
-//            //$paramsJson = str_replace("\\\\\\", '', $paramsJson);
-//        } else {
-//            $paramsJson = '{}';
-//        }
-
-//        $sign = "app_key{$this->_appKey}method{$this->_method}param_json{$paramsJson}timestamp{$this->_timestamp}v{$this->_v}";
-//        $postData = [
-//            'method' => $this->_method,
-//            'app_key' => $this->_appKey,
-//            'access_token' => $this->_accessToken ? $this->_accessToken : '',
-//            'param_json' => $paramsJson,
-//            'timestamp' =>  $this->_timestamp,
-//            'v' => $this->_v,
-//            'sign' => md5("{$this->_appSecret}{$sign}{$this->_appSecret}"),
-//        ];
-//        $jsonString = $this->curl_post_https($url, $paramData);
-        return $this->curl_post_https($url, $paramData);
-//        Storage::disk('public')->append($this->_apiLog, "接口：{$this->_method} 被调用");
-//        Storage::disk('public')->append($this->_apiLog, "URL：{$url}");
-//        Storage::disk('public')->append($this->_apiLog, "参数：" . json_encode($postData, JSON_UNESCAPED_UNICODE));
-//        Storage::disk('public')->append($this->_apiLog, "返回：{$jsonString}");
-//        $jsonData = json_decode($jsonString, true);
-//        if ($jsonData && isset($jsonData['err_no']) && $jsonData['err_no'] == '0') {
-//            return $jsonData;
-//        } else {
-//            return ['err_no' => '-1', 'message' => "本地系统接口请求出错：{$jsonString}"];
-//        }
+        $result = $this->sendRequest($url, $data, false);
+        if ($result && isset($result['code']) && $result['code'] == '0') {
+            $data = $result['data'];
+            $data['app_id'] = $this->config['app_id'];
+            $data['secret'] = $this->config['secret'];
+            $data['updated'] = $this->_nowTime;
+            Storage::disk('public')->put($this->_configFile, json_encode($data, JSON_UNESCAPED_UNICODE));
+        }
+        return $result;
     }
 
-    private function curl_post_https($url,$data=[]){ // 模拟提交数据函数
+    public function refreshAccessToken() {
+        $url = self::URL['refreshAccessToken'];
+        $data = [
+            'app_id' => $this->config['app_id'],
+            'secret' => $this->config['secret'],
+            'grant_type' => 'auth_code',
+            'refresh_token' => $this->config['refresh_token'],
+        ];
+        $result = $this->sendRequest($url, $data, false);
+        if ($result && isset($result['code']) && $result['code'] == '0') {
+            $data = $result['data'];
+            $data['app_id'] = $this->config['app_id'];
+            $data['secret'] = $this->config['secret'];
+            $data['updated'] = $this->_nowTime;
+            Storage::disk('public')->put($this->_configFile, json_encode($data, JSON_UNESCAPED_UNICODE));
+        }
+        return $result;
+    }
+
+    public function getAdvertiser() {
+        $url = self::URL['getAdvertiser'];
+        $data = [
+            'app_id' => $this->config['app_id'],
+            'secret' => $this->config['secret'],
+            'access_token' => $this->config['access_token'],
+        ];
+        return $this->sendRequest($url, $data);
+    }
+
+    private function sendRequest($url, $paramData=[], $isGet=true) {
+        if (!$isGet) {
+            $jsonString = $this->curl_https($url, $paramData);
+            Storage::disk('public')->append($this->_apiLog, "接口：POST");
+        } else {
+            if ($paramData) {
+                foreach ($paramData as $k => $v) {
+                    $url .= "{$k}={$v}&";
+                }
+                $url = substr($url, 0, -1);
+            }
+            $jsonString = $this->curl_https($url);
+            Storage::disk('public')->append($this->_apiLog, "接口：GET");
+        }
+        Storage::disk('public')->append($this->_apiLog, "URL：{$url}");
+        Storage::disk('public')->append($this->_apiLog, "参数：" . json_encode($paramData, JSON_UNESCAPED_UNICODE));
+        Storage::disk('public')->append($this->_apiLog, "返回：{$jsonString}\n");
+        $jsonData = json_decode($jsonString, true);
+        if ($jsonData && isset($jsonData['code'])) {
+            return $jsonData;
+        } else {
+            return ['code' => '-1', 'message' => "本地系统接口请求出错：{$jsonString}"];
+        }
+    }
+
+    private function curl_https($url,$data=[]){ // 模拟提交数据函数
         $curl = curl_init(); // 启动一个CURL会话
         curl_setopt($curl, CURLOPT_URL, $url); // 要访问的地址
         curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0); // 对认证证书来源的检查
@@ -112,6 +169,7 @@ class QianChuanApi {
         }
         curl_setopt($curl, CURLOPT_TIMEOUT, 30); // 设置超时限制防止死循环
         curl_setopt($curl, CURLOPT_HEADER, 0); // 显示返回的Header区域内容
+
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1); // 获取的信息以文件流的形式返回
         $tmpInfo = curl_exec($curl); // 执行操作
         if (curl_errno($curl)) {
