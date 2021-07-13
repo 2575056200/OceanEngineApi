@@ -1,5 +1,5 @@
 <?php
-namespace didphp\OceanEngineApi;
+namespace Didphp\OceanEngineApi;
 
 /**
  * Class QianChuanApi
